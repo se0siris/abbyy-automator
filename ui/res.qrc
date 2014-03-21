@@ -1,0 +1,7 @@
+<RCC>
+  <qresource prefix="icons">
+    <file>view-refresh.png</file>
+    <file>application.png</file>
+    <file>view-refresh.svg</file>
+  </qresource>
+</RCC>
