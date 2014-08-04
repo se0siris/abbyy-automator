@@ -4,25 +4,27 @@ from PyQt4.QtCore import QObject, pyqtSignal, QThread, QCoreApplication, QTimer
 from PyQt4.QtNetwork import QLocalServer, QLocalSocket
 import time
 import pywinauto
+from ui.custom_widgets import find_app_path
 
 __author__ = 'Gary Hughes'
 
 
 class AppWatcher(QObject):
-
     # Signals
     error = pyqtSignal(str)
 
     check_phrases = (
-        'The following errors occurred',
         'Some licenses cannot be used',
         'Some of the pages have not been',
         'Process failed'
     )
 
-    def __init__(self, pid, parent=None):
+    def __init__(self, proc, parent=None):
         super(AppWatcher, self).__init__(parent)
-        self.pid = pid
+        self.proc = proc
+        self.pid = proc.pid
+        self.polls_without_dialog = 0
+        print 'PID:', self.pid
 
     def start(self):
         print 'Starting watcher'
@@ -31,12 +33,17 @@ class AppWatcher(QObject):
         self.abbyy_dialog = self.abbyy_app.window_(class_name='#32770')
 
         print QThread.currentThread()
-        self.test_timer = QTimer()
-        self.test_timer.setInterval(500)
-        self.test_timer.timeout.connect(self.poll)
-        self.test_timer.start()
+        self.polling_timer = QTimer()
+        self.polling_timer.setInterval(500)
+        self.polling_timer.timeout.connect(self.poll)
+        self.polling_timer.start()
 
     def poll(self):
+        if not self.proc.poll() is None:
+            # Application seems to have exited.
+            print 'Abbyy quit?'
+            self.error.emit('Abbyy exited before being able to process the file.')
+            return
         if self.abbyy_dialog.Exists():
             # We have a dialog. Read it!
             try:  # Wrap in a try block in case the pesky window vanishes while we're reading...
@@ -52,55 +59,63 @@ class AppWatcher(QObject):
                                 print 'Click closed'
                                 close_button.Click()
                                 time.sleep(0.3)
-                            self.abbyy_app.kill_()
                             self.error.emit(phrase)
+                            self.abbyy_app.kill_()
                             break
             except pywinauto.findwindows.WindowNotFoundError:
                 print 'Window went away. No biggy.'
                 return
+        else:
+            self.polls_without_dialog += 1
+            print '{0:.1f} seconds without activity...'.format(
+                (self.polls_without_dialog * self.polling_timer.interval()) / 1000.0)
+            if self.polls_without_dialog >= 20:
+                # Abbyy is running but it doesn't look like it's doing anything. Kill it.
+                self.error.emit('Abbyy was idle for too long without a dialog.')
+                self.abbyy_app.kill_()
+                return
 
 
 class AbbyyOcr(QObject):
-
     # Signals
     error = pyqtSignal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, abbyy_path, parent=None):
         super(AbbyyOcr, self).__init__(parent)
 
+        self.abbyy_path = abbyy_path
         self.app_watcher = None
         self.proc = None
         self.current_profile = None
 
-        # TODO: Detect FineReader path on installed system instead of hard-coding.
-        self.cmd = r'c:\Program Files (x86)\ABBYY FineReader 10\FineReader.exe'
-
     def ocr(self, path):
         options = ['/OptionsFile', self.current_profile] if self.current_profile else []
-        args = [self.cmd, path] + options + ['/send', 'Acrobat']
+        args = [self.abbyy_path, path] + options + ['/send', 'Acrobat']
 
         startup_info = subprocess.STARTUPINFO()
         startup_info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
         self.proc = subprocess.Popen(args, startupinfo=startup_info)
-        pid = self.proc.pid
-        print 'PID:', self.proc.pid
 
         self.app_watcher_thread = QThread()
 
-        self.app_watcher = AppWatcher(pid)
+        self.app_watcher = AppWatcher(self.proc)
+        self.app_watcher.moveToThread(self.app_watcher_thread)
         self.app_watcher.error.connect(self.emit_error)
 
         self.app_watcher_thread.started.connect(self.app_watcher.start)
         self.app_watcher_thread.finished.connect(self.app_watcher_thread.deleteLater)
-        self.app_watcher.moveToThread(self.app_watcher_thread)
         self.app_watcher_thread.start()
 
     def kill(self):
         print 'Killing...'
-        self.proc.kill()
-        self.proc.wait()
-        self.proc = None
+        try:
+            self.proc.kill()
+            self.proc.wait()
+            self.proc = None
+        except AttributeError:
+            # The process has already been deleted.
+            pass
 
         self.app_watcher.deleteLater()
         self.app_watcher_thread.quit()
@@ -113,7 +128,6 @@ class AbbyyOcr(QObject):
 
 
 class AcrobatProxyListener(QLocalServer):
-
     # Signals
     new_path = pyqtSignal(str)
 
@@ -144,10 +158,3 @@ class AcrobatProxyListener(QLocalServer):
         self.local_socket.deleteLater()
         print 'New path:', data
         self.new_path.emit(data)
-
-
-if __name__ == "__main__":
-    import sys
-    app = QCoreApplication(sys.argv)
-    main = Main()
-    sys.exit(app.exec_())
