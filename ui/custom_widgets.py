@@ -1,14 +1,34 @@
 import os
 import platform
-from PyQt4.QtCore import QObject, pyqtSignal, QThread, Qt
-from PyQt4.QtGui import QApplication, QLineEdit, QStatusBar, QLabel, QFrame
 import win32file
+
+from PyQt4.QtCore import QObject, pyqtSignal, QThread, Qt, QSettings, QMutex, QMutexLocker
+from PyQt4.QtGui import QApplication, QLineEdit, QStatusBar, QLabel, QFrame
+import win32api
+import pywintypes
 import win32con
+
 
 __author__ = 'Gary Hughes'
 
 
-class FileWatcher(QThread):
+def find_app_path(app_name):
+    settings = QSettings('HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\'
+                         'Windows\\CurrentVersion\\App Paths\\{0:s}.exe'.format(app_name),
+                         QSettings.NativeFormat)
+    return str(settings.value('Default', '').toString())
+
+
+def get_exe_version(exe_path):
+    try:
+        info = win32api.GetFileVersionInfo(exe_path, '\\')
+        version = map(int, (win32api.HIWORD(info['FileVersionMS']), win32api.LOWORD(info['FileVersionMS'])))
+    except pywintypes.error:
+        version = None
+    return version
+
+
+class FileWatcher(QObject):
 
     ACTIONS = {
         1: 'Created',
@@ -24,13 +44,26 @@ class FileWatcher(QThread):
     first_queue = pyqtSignal(list)
     queue_change = pyqtSignal(tuple)
     count_change = pyqtSignal(int)
+    finished = pyqtSignal()
 
     def __init__(self, watch_folder, extension, parent=None):
         super(FileWatcher, self).__init__(parent)
         self.watch_folder = watch_folder
         self.extension = extension
+        self.mutex = QMutex()
+        self.stopping_value = False
 
-    def run(self):
+    @property
+    def stopping(self):
+        mutex_locker = QMutexLocker(self.mutex)
+        return self.stopping_value
+
+    @stopping.setter
+    def stopping(self, value):
+        mutex_locker = QMutexLocker(self.mutex)
+        self.stopping_value = value
+
+    def start(self):
         # Build an initial queue.
         file_queue = []
         for dirpath, dirnames, filenames in os.walk(self.watch_folder):
@@ -50,6 +83,10 @@ class FileWatcher(QThread):
             None
         )
 
+        if self.stopping:
+            self.finished.emit()
+            return
+
         print 'Thread: Entering loop'
 
         while 1:
@@ -66,6 +103,9 @@ class FileWatcher(QThread):
                 None,
                 None
             )
+            if self.stopping:
+                self.finished.emit()
+                return
             for action, filename in results:
                 full_filename = os.path.normpath(os.path.join(self.watch_folder, filename))
                 if not filename.lower().endswith(self.extension):
@@ -74,6 +114,7 @@ class FileWatcher(QThread):
                 self.queue_change.emit((action, full_filename))
 
         print 'Watcher thread closing...'
+        self.finished.emit()
 
 
 class Win7Taskbar(QObject):
@@ -181,7 +222,7 @@ class StatusBar(QStatusBar):
         self.middle_label.setAlignment(Qt.AlignHCenter)
 
         self.addPermanentWidget(self.left_label, 2)
-        self.addPermanentWidget(self.middle_label, 1)
+        self.addPermanentWidget(self.middle_label, 2)
         self.addPermanentWidget(self.right_label, 1)
 
         self.messageChanged.connect(self.update_left)

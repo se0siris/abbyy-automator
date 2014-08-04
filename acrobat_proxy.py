@@ -82,7 +82,7 @@ class Main(QObject):
         print 'There was an error!'
         if t == QLocalSocket.ServerNotFoundError:
             response = MessageBox(
-                'An ABBYY path was detected, but the ABBYY Automator does not appear to be running.\n\n'
+                'An ABBYY path was detected, but the ABBYY Automator does not appear to be listening.\n\n'
                 '{}\n\nOpen PDF in Acrobat?'.format(self.pdf_path),
                 'ABBYY Automator Acrobat Proxy',
                 win32con.MB_YESNO | win32con.MB_ICONQUESTION | win32con.MB_DEFBUTTON2
@@ -96,8 +96,8 @@ class Main(QObject):
 
     def app_quit(self):
         print 'All done'
-        with open('acrobat_proxy.log', 'w') as log_file:
-            log_file.write(str(self.passed_arguments))
+        # with open('acrobat_proxy.log', 'w') as log_file:
+        #     log_file.write(str(self.passed_arguments))
         self.app.quit()
         sys.exit()
 

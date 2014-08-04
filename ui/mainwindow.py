@@ -3,14 +3,17 @@ from glob import iglob
 import os
 import re
 from shutil import move
-from PyQt4.QtCore import pyqtSignature, QTimer, QThread
-from PyQt4.QtGui import QMainWindow, QApplication, QIcon
-import time
+import shutil
 import sys
+
+from PyQt4.QtCore import pyqtSignature, QThread
+from PyQt4.QtGui import QMainWindow, QApplication, QFileDialog
+
 from ui.Ui_mainwindow import Ui_MainWindow
 from ui.abbyy_controller import AcrobatProxyListener, AbbyyOcr
-from ui.custom_widgets import Win7Taskbar, FileWatcher
+from ui.custom_widgets import Win7Taskbar, FileWatcher, find_app_path, get_exe_version
 from ui.message_boxes import message_box_error
+
 
 __author__ = 'Gary Hughes'
 
@@ -32,34 +35,136 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.win7_taskbar = Win7Taskbar(self)
         self.app = QApplication.instance()
         self.setupUi(self)
+
+        self.setWindowTitle('ABBYY Automator v{0:s}'.format(self.app.applicationVersion()))
+
+        self.get_app_paths()
+
+        self.button_save_errors.setVisible(False)
         self.progress_bar.setVisible(0)
         self.on_tb_refresh_profiles_released()
 
         self.last_logged_text = ''
 
         self.file_watcher = None
-        self.processed_count = -1  # Start at -1 so that the first increment resets to 0.
+        self.processed_count = 0
+        self.skipped_count = 0
         self.file_queue = deque()
         self.current_pathname = None
         self.current_watch_path = None
+        self.error_paths = []
 
         self.acrobat_proxy_listener = AcrobatProxyListener()
         self.acrobat_proxy_listener.new_path.connect(self.path_received)
 
-        self.abbyy_ocr = AbbyyOcr()
+        self.abbyy_ocr = AbbyyOcr(self.abby_path)
         self.abbyy_ocr.error.connect(self.error_received)
 
-        self.queue_size_changed(0)
+        self.update_processed_status()
         self.statusbar.update_left('Ready to begin')
-        self.increment_processed()
+
+        self.output_folder = ''
+
+    def get_app_paths(self):
+        # Get ABBYY path.
+        self.abby_path = find_app_path('FineReader')
+        if not self.abby_path or not os.path.isfile(self.abby_path):
+            message_box_error('ABBYY FineReader not found',
+                              'Could not find an ABBYY FineReader install on this machine.')
+            sys.exit()
+
+        # Check for version 10 of ABBYY.
+        abbyy_dir = os.path.dirname(self.abby_path)
+        if not abbyy_dir[-2:] == '10':
+            ten_path = '{0:s}10\\FineReader.exe'.format(self.abby_path[-2:])
+            if os.path.isfile(ten_path):
+                self.abby_path = ten_path
+            else:
+                message_box_error('ABBYY FineReader 10 not found',
+                                  'ABBYY FineReader was found on this machine, but a version other than 10.')
+                sys.exit()
+
+        # Get Acrobat path.
+        self.acrobat_path = find_app_path('Acrobat')
+        if not self.acrobat_path or not os.path.isfile(self.acrobat_path):
+            message_box_error('Adobe Acrobat not found',
+                              'Could not find an Adobe Acrobat install on this machine.')
+            sys.exit()
+
+    def install_acrobat_proxy(self):
+        acrobat_backup_path = '{0:s}_.exe'.format(self.acrobat_path[:-4])
+        acrobat_version = get_exe_version(self.acrobat_path)
+
+        if acrobat_version[0] < 5 and os.path.isfile(acrobat_backup_path):
+            # Proxy already installed.
+            self.log('Acrobat proxy already installed.', bold=True)
+            return True
+
+        self.log('Installing Acrobat proxy over Acrobat v{0:d}.{1:d}...'.format(*acrobat_version), bold=True)
+        try:
+            # Backup existing Acrobat.exe.
+            shutil.move(self.acrobat_path, acrobat_backup_path)
+        except(OSError, IOError):
+            self.log('Error moving Acrobat.exe - is Acrobat running?', bold=True, colour='red')
+            return False
+
+        try:
+            # Copy Proxy in place of Acrobat
+            shutil.copy('Acrobat Proxy.exe', self.acrobat_path)
+        except(OSError, IOError):
+            self.log('Error installing proxy - please check folder permissions.', bold=True, colour='red')
+            return False
+
+        return True
+
+    def restore_acrobat(self):
+        acrobat_backup_path = '{0:s}_.exe'.format(self.acrobat_path[:-4])
+        acrobat_version = get_exe_version(acrobat_backup_path)
+        proxy_version = get_exe_version(self.acrobat_path)
+
+        if not acrobat_version and proxy_version:
+            return False
+
+        if proxy_version[0] > 5 and os.path.isfile(acrobat_backup_path):
+            # Proxy not installed.
+            self.log('Acrobat proxy not installed.', bold=True, colour='red')
+            return True
+
+        self.log('Restoring Acrobat v{0:d}.{1:d}...'.format(*acrobat_version), bold=True)
+        try:
+            # Backup existing Acrobat.exe.
+            shutil.move(acrobat_backup_path, self.acrobat_path)
+        except(OSError, IOError):
+            self.log('Error moving Acrobat.exe - is Acrobat running?', bold=True, colour='red')
+            return False
+
+        return True
 
     def increment_processed(self):
         self.processed_count += 1
-        if self.processed_count == 1:
-            self.statusbar.update_middle('1 file processed')
+        self.update_processed_status()
+
+    def update_processed_status(self):
+        if not self.skipped_count:
+            skipped_text = ''
         else:
-            self.statusbar.update_middle('{0:,} files processed'.format(self.processed_count))
-        self.queue_size_changed(len(self.file_queue))
+            if self.skipped_count == 1:
+                skipped_text = ' (1 file skipped)'
+            else:
+                skipped_text = ' ({0:,} files skipped)'.format(self.skipped_count)
+
+        if self.processed_count == 1:
+            self.statusbar.update_middle('1 file processed{0:s}'.format(skipped_text))
+        else:
+            self.statusbar.update_middle('{0:,} files processed{1:s}'.format(self.processed_count, skipped_text))
+
+        queue_size = len(self.file_queue)
+        if queue_size == 1:
+            self.statusbar.update_right('1 file remaining')
+        else:
+            self.statusbar.update_right('{0:,} files remaining'.format(queue_size))
+
+        self.app.processEvents()
 
     def log(self, text='', indent=False, update_existing=False, colour=None, bold=False, status_bar=False):
         """
@@ -88,15 +193,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # Remove HTML tags from the text and add to the status bar.
             self.statusbar.showMessage(regex_html_tags.sub('', text))
 
-    def queue_size_changed(self, count):
-        if count == 1:
-            self.statusbar.update_right('1 file remaining')
-        else:
-            self.statusbar.update_right('{0:,} files remaining'.format(count))
-
+    def queue_size_changed(self, count=None):
         # If we've items in the queue, we're in process mode and currently are not processing any files then start
         # on the next item in the queue.
+        if not count:
+            count = len(self.file_queue)
         if count and self.button_start.isChecked() and not self.current_pathname:
+            print 'Processing restarted!'
             self.process_next()
 
     def queue_received(self, queue_list):
@@ -106,6 +209,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.log('Found <b>{0:,} files'.format(length))
 
         self.progress_bar.setRange(0, length)
+        self.update_processed_status()
 
         if self.button_start.isChecked():
             self.log()
@@ -131,7 +235,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.file_queue.remove(filename)
             except ValueError:
                 print 'Error removing from queue:', filename
-        self.queue_size_changed(len(self.file_queue))
+        self.update_processed_status()
+        self.queue_size_changed()
         self.adjust_progress_bars()
 
     def process_next(self):
@@ -139,9 +244,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         Get next item in the queue and send it to ABBYY.
         """
         try:
-            path = self.file_queue.popleft()
+            while True:
+                # Keep pulling from the queue until the output file doesn't already exist.
+                path = self.file_queue.popleft()
+                out_path = os.path.join(self.output_folder,
+                                        '{0:s}.pdf'.format(path[len(self.current_watch_path) + 1:-4]))
+                print 'CHECKING', out_path
+                if not os.path.isfile(out_path):
+                    break
+                self.skipped_count += 1
+                self.update_processed_status()
         except IndexError:
             # Queue is empty.
+            print 'QUEUE IS NOW EMPTY!'
             self.current_pathname = None
             self.progress_bar.setMaximum(0)
             self.progress_bar.setValue(0)
@@ -156,6 +271,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def closeEvent(self, event):
         self.file_queue.clear()  # Ensure the queue is clear for a clean exit.
+        self.restore_acrobat()
         super(MainWindow, self).closeEvent(event)
 
     def path_received(self, path):
@@ -164,12 +280,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         print 'Path received:', path
 
         # Calculate output path and store it for when the file is done.
-        if not self.current_pathname.endswith('.pdf'):
-            out_path = '{0:s}.pdf'.format(self.current_pathname[:-4])
-        else:
-            # TODO: Add handler for input file being a PDF.
-            out_path = '{0:s}.pdf'.format(self.current_pathname[:-4])
-
+        out_path = os.path.join(self.output_folder,
+                                    '{0:s}.pdf'.format(self.current_pathname[len(self.current_watch_path) + 1:-4]))
+        out_folder = os.path.dirname(out_path)
+        if not os.path.isdir(out_folder):
+            os.makedirs(out_folder)
         try:
             move(path, out_path)
         except(IOError, OSError):
@@ -177,10 +292,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.progress_bar.setValue(self.progress_bar.value() + 1)
         self.increment_processed()
-        self.app.processEvents()  # Keep the GUI responsive during processing.
-        self.process_next()
+        self.update_processed_status()
+        if self.button_start.isChecked():
+            self.process_next()
+        else:
+            self.acrobat_proxy_listener.stop()
 
     def error_received(self, error_message):
+        self.button_save_errors.setVisible(True)
+        self.error_paths.append(self.current_pathname)
         self.log('Error processing {0:s}:'.format(self.current_pathname), bold=True, colour='red')
         self.log('Error phrase matched: <b>{0:s}</b>'.format(error_message), indent=True)
         self.progress_bar.setValue(self.progress_bar.value() + 1)
@@ -193,13 +313,20 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.progress_bar.setVisible(False)
         self.button_start.setChecked(False)
         self.file_queue = deque()
-        self.queue_size_changed(0)
+        self.update_processed_status()
 
-    @pyqtSignature('')
-    def on_button_start_released(self):
-        button_checked = self.button_start.isChecked()
-        if not button_checked:
+    @pyqtSignature('bool')
+    def on_button_start_toggled(self, pressed):
+        if not pressed:
+            print 'Released!', pressed
+            self.progress_bar.setVisible(False)
+            self.statusbar.update_left('Ready to begin')
+            if self.current_pathname is None:
+                self.acrobat_proxy_listener.stop()
             return
+
+        self.output_folder = str(self.le_output_folder.text())
+        print "Output folder:", self.output_folder
 
         watch_folder = str(self.le_watch_folder.text())
         print watch_folder
@@ -217,20 +344,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.abbyy_ocr.current_profile = None
         print 'Current profile:', self.abbyy_ocr.current_profile
 
+        print self.install_acrobat_proxy()
+        # return
+
         self.current_watch_path = watch_folder
         self.log('Searching for files in <b>{0:s}</b>...'.format(watch_folder), status_bar=True)
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)
-
-        # Get extension from radio buttons.
-        if self.rb_tiff.isChecked():
-            extension = ('.tiff', '.tif')
-        elif self.rb_pdf.isChecked():
-            extension = '.pdf'
-        elif self.rb_jpeg.isChecked():
-            extension = '.jpg'
-        else:
-            raise Exception('No extension selected')
 
         if not self.acrobat_proxy_listener.start():
             message_box_error('Error starting Acrobat Proxy Listener',
@@ -240,11 +360,49 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.reset()
             return
 
-        self.file_watcher = FileWatcher(watch_folder, extension)
-        self.file_watcher.count_change.connect(self.queue_size_changed)
-        self.file_watcher.first_queue.connect(self.queue_received)
-        self.file_watcher.queue_change.connect(self.watch_folder_changed)
-        self.file_watcher.start()
+        if not hasattr(self, 'file_watcher_thread'):
+            # Get extension from radio buttons.
+            if self.rb_tiff.isChecked():
+                extension = ('.tiff', '.tif')
+            elif self.rb_pdf.isChecked():
+                extension = '.pdf'
+            elif self.rb_jpeg.isChecked():
+                extension = '.jpg'
+            else:
+                raise Exception('No extension selected')
+
+            self.file_watcher_thread = QThread()
+            self.file_watcher = FileWatcher(watch_folder, extension)
+            self.file_watcher.moveToThread(self.file_watcher_thread)
+            self.file_watcher_thread.started.connect(self.file_watcher.start)
+            self.file_watcher_thread.finished.connect(self.file_watcher_thread.deleteLater)
+            self.file_watcher.finished.connect(self.file_watcher_thread.quit)
+            self.file_watcher.count_change.connect(self.queue_size_changed)
+            self.file_watcher.first_queue.connect(self.queue_received)
+            self.file_watcher.queue_change.connect(self.watch_folder_changed)
+
+        if not self.file_watcher_thread.isRunning():
+            self.file_watcher_thread.start()
+        else:
+            if self.file_queue:
+                self.adjust_progress_bars()
+                self.progress_bar.setValue(0)
+                self.update_processed_status()
+                self.process_next()
+
+    @pyqtSignature('')
+    def on_button_watch_browse_released(self):
+        watch_path = QFileDialog.getExistingDirectory(self, 'Select an input folder')
+        if not watch_path:
+            return
+        self.le_watch_folder.setText(watch_path)
+
+    @pyqtSignature('')
+    def on_button_output_browse_released(self):
+        output_path = QFileDialog.getExistingDirectory(self, 'Select an output folder')
+        if not output_path:
+            return
+        self.le_output_folder.setText(output_path)
 
     @pyqtSignature('')
     def on_tb_refresh_profiles_released(self):
@@ -260,5 +418,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         for path in profiles_list:
             title = os.path.basename(path)[:-4]
             self.cb_profile.addItem(title, path)
+
+    @pyqtSignature('')
+    def on_button_save_errors_released(self):
+        error_log_path = QFileDialog.getSaveFileName(self, 'Save error log', filter='Text Files (*.txt)')
+        if not error_log_path:
+            return
+
+        with open(error_log_path, 'w') as log_file:
+            for item in self.error_paths:
+                log_file.write('{0:s}\n'.format(item))
 
 
