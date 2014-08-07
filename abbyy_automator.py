@@ -22,8 +22,8 @@ def except_hook(exc_type, exc_value, traceback_obj):
     separator = '-' * 80
     log_file = "error.log"
     notice = '''An unhandled exception occurred. Please report the problem
-                via email to <a href="mailto:halogen@pearl-scan.co.uk">halogen@pearl-scan.co.uk</a>.<br>
-                A log has been written to "<i>error.log</i>" in your Halogen folder.<br><br>
+                via email to <a href="mailto:support@pearl-scan.co.uk">support@pearl-scan.co.uk</a>.<br>
+                A log has been written to "<i>error.log</i>" in your application folder.<br><br>
                 Error information:\n'''
     time_string = time.strftime("%Y-%m-%d, %H:%M:%S")
     machine_name = os.getenv('COMPUTERNAME')
@@ -100,5 +100,5 @@ def start_main():
 
 if __name__ == "__main__":
     start_main()
-    print 'Halogen closed'
+    print 'Application closed'
     sys.exit()
