@@ -1,13 +1,32 @@
+import glob
 import os
+import stat
 import subprocess
+import re
+import tempfile
 from PyQt4.QtCore import QObject, pyqtSignal, QThread, QCoreApplication, QTimer
 from PyQt4.QtNetwork import QLocalServer, QLocalSocket
 from itertools import chain
+from shutil import rmtree
 import time
 import pywinauto
 from ui.custom_widgets import find_app_path
 
 __author__ = 'Gary Hughes'
+
+regex_pid = re.compile(r'(?<=^PID:\s)\d+$')
+
+
+def get_abbyy_temp_folder(pid):
+    base_folder = os.path.join(tempfile.gettempdir(), 'FineReader10')
+    for folder_base in reversed(glob.glob('{0:s}/Untitled.FR10*'.format(base_folder))):
+        for loc_file_path in glob.glob('{0:s}/{{*}}.loc'.format(folder_base)):
+            with open(loc_file_path, 'r') as loc_file:
+                for line in loc_file:
+                    match = regex_pid.findall(line)
+                    if len(match) == 1 and match[0] == str(pid):
+                        return folder_base
+    return None
 
 
 class AppWatcher(QObject):
@@ -25,6 +44,7 @@ class AppWatcher(QObject):
         self.proc = proc
         self.pid = proc.pid
         self.polls_without_dialog = 0
+        self.current_temp_path = None
         print 'PID:', self.pid
 
     def start(self):
@@ -40,6 +60,9 @@ class AppWatcher(QObject):
         self.polling_timer.start()
 
     def poll(self):
+        if not self.current_temp_path:
+            self.current_temp_path = get_abbyy_temp_folder(self.pid)
+            print 'Temp path set to', self.current_temp_path
         if not self.proc.poll() is None:
             # Application seems to have exited.
             print 'Abbyy quit?'
@@ -117,6 +140,7 @@ class AbbyyOcr(QObject):
     def kill(self):
         print 'Killing...'
         try:
+            abbyy_temp_path = self.app_watcher.current_temp_path
             self.proc.kill()
             self.proc.wait()
             self.proc = None
@@ -130,6 +154,15 @@ class AbbyyOcr(QObject):
             self.app_watcher_thread.wait()
         except RuntimeError:
             # self.app_watcher already deleted.
+            pass
+
+        # Try to remove temp files.
+        print 'Removing', abbyy_temp_path
+        os.chmod(abbyy_temp_path, stat.S_IWRITE)
+        try:
+            rmtree(abbyy_temp_path)
+            map(os.remove, glob.glob('{0:s}/*.tmp'.format(os.path.join(tempfile.gettempdir(), 'FineReader10'))))
+        except (OSError, IOError, WindowsError):
             pass
         print 'Killed'
 
