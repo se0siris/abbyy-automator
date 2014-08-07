@@ -272,6 +272,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def closeEvent(self, event):
         self.file_queue.clear()  # Ensure the queue is clear for a clean exit.
         self.restore_acrobat()
+
+        self.abbyy_ocr.kill()
+
         super(MainWindow, self).closeEvent(event)
 
     def path_received(self, path):
