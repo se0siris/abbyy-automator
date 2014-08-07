@@ -17,7 +17,6 @@ from ui.message_boxes import message_box_error
 
 __author__ = 'Gary Hughes'
 
-
 regex_html_tags = re.compile('<[^<]+?>')  # Strip HTML tags.
 
 
@@ -284,7 +283,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         # Calculate output path and store it for when the file is done.
         out_path = os.path.join(self.output_folder,
-                                    '{0:s}.pdf'.format(self.current_pathname[len(self.current_watch_path) + 1:-4]))
+                                '{0:s}.pdf'.format(self.current_pathname[len(self.current_watch_path) + 1:-4]))
         out_folder = os.path.dirname(out_path)
         if not os.path.isdir(out_folder):
             os.makedirs(out_folder)
@@ -310,6 +309,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.increment_processed()
         self.app.processEvents()  # Keep the GUI responsive during processing.
         self.process_next()
+
+    def file_watcher_error(self, error_message):
+        self.log('WATCH FOLDER ERROR:', colour='red', bold=True)
+        self.log(error_message, indent=True, bold=True)
+        message_box_error('Watch folder error', error_message)
+
+        # Lock down all application controls other than the error log saving button.
+        self.button_start.setChecked(False)
+        for widget in (self.button_start, self.button_output_browse, self.button_watch_browse, self.cb_profile,
+                       self.tb_refresh_profiles, self.rb_jpeg, self.rb_pdf, self.rb_tiff):
+            widget.setEnabled(False)
+        return
 
     def reset(self):
         self.acrobat_proxy_listener.stop()
@@ -383,6 +394,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.file_watcher.count_change.connect(self.queue_size_changed)
             self.file_watcher.first_queue.connect(self.queue_received)
             self.file_watcher.queue_change.connect(self.watch_folder_changed)
+            self.file_watcher.error.connect(self.file_watcher_error)
 
         if not self.file_watcher_thread.isRunning():
             self.file_watcher_thread.start()
