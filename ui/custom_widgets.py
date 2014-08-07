@@ -45,6 +45,7 @@ class FileWatcher(QObject):
     queue_change = pyqtSignal(tuple)
     count_change = pyqtSignal(int)
     finished = pyqtSignal()
+    error = pyqtSignal(str)
 
     def __init__(self, watch_folder, extension, parent=None):
         super(FileWatcher, self).__init__(parent)
@@ -90,19 +91,24 @@ class FileWatcher(QObject):
         print 'Thread: Entering loop'
 
         while 1:
-            results = win32file.ReadDirectoryChangesW(
-                h_dir,
-                10240,
-                True,
-                win32con.FILE_NOTIFY_CHANGE_FILE_NAME |
-                win32con.FILE_NOTIFY_CHANGE_DIR_NAME |
-                win32con.FILE_NOTIFY_CHANGE_ATTRIBUTES |
-                win32con.FILE_NOTIFY_CHANGE_SIZE |
-                win32con.FILE_NOTIFY_CHANGE_LAST_WRITE |
-                win32con.FILE_NOTIFY_CHANGE_SECURITY,
-                None,
-                None
-            )
+            try:
+                results = win32file.ReadDirectoryChangesW(
+                    h_dir,
+                    10240,
+                    True,
+                    win32con.FILE_NOTIFY_CHANGE_FILE_NAME |
+                    win32con.FILE_NOTIFY_CHANGE_DIR_NAME |
+                    win32con.FILE_NOTIFY_CHANGE_ATTRIBUTES |
+                    win32con.FILE_NOTIFY_CHANGE_SIZE |
+                    win32con.FILE_NOTIFY_CHANGE_LAST_WRITE |
+                    win32con.FILE_NOTIFY_CHANGE_SECURITY,
+                    None,
+                    None
+                )
+            except pywintypes.error, e:
+                self.error.emit(e[2])
+                return
+
             if self.stopping:
                 self.finished.emit()
                 return
