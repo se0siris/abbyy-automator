@@ -146,24 +146,25 @@ class AbbyyOcr(QObject):
             self.proc = None
         except AttributeError:
             # The process has already been deleted.
-            pass
+            abbyy_temp_path = None
 
         try:
             self.app_watcher.deleteLater()
             self.app_watcher_thread.quit()
             self.app_watcher_thread.wait()
-        except RuntimeError:
+        except (RuntimeError, AttributeError):
             # self.app_watcher already deleted.
             pass
 
         # Try to remove temp files.
-        print 'Removing', abbyy_temp_path
-        os.chmod(abbyy_temp_path, stat.S_IWRITE)
-        try:
-            rmtree(abbyy_temp_path)
-            map(os.remove, glob.glob('{0:s}/*.tmp'.format(os.path.join(tempfile.gettempdir(), 'FineReader10'))))
-        except (OSError, IOError, WindowsError):
-            pass
+        if abbyy_temp_path:
+            print 'Removing', abbyy_temp_path
+            os.chmod(abbyy_temp_path, stat.S_IWRITE)
+            try:
+                rmtree(abbyy_temp_path)
+                map(os.remove, glob.glob('{0:s}/*.tmp'.format(os.path.join(tempfile.gettempdir(), 'FineReader10'))))
+            except (OSError, IOError, WindowsError):
+                pass
         print 'Killed'
 
     def emit_error(self, error_message):
