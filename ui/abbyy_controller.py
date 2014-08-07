@@ -117,9 +117,13 @@ class AbbyyOcr(QObject):
             # The process has already been deleted.
             pass
 
-        self.app_watcher.deleteLater()
-        self.app_watcher_thread.quit()
-        self.app_watcher_thread.wait()
+        try:
+            self.app_watcher.deleteLater()
+            self.app_watcher_thread.quit()
+            self.app_watcher_thread.wait()
+        except RuntimeError:
+            # self.app_watcher already deleted.
+            pass
         print 'Killed'
 
     def emit_error(self, error_message):
