@@ -2,6 +2,7 @@ import os
 import subprocess
 from PyQt4.QtCore import QObject, pyqtSignal, QThread, QCoreApplication, QTimer
 from PyQt4.QtNetwork import QLocalServer, QLocalSocket
+from itertools import chain
 import time
 import pywinauto
 from ui.custom_widgets import find_app_path
@@ -47,10 +48,16 @@ class AppWatcher(QObject):
         if self.abbyy_dialog.Exists():
             # We have a dialog. Read it!
             try:  # Wrap in a try block in case the pesky window vanishes while we're reading...
-                static_texts = ' '.join([
-                    ' '.join(self.abbyy_dialog.Static.Texts()),
-                    ' '.join(self.abbyy_dialog.Static2.Texts())
-                ]).strip()
+                try:
+                    static_texts = ' '.join([
+                        ' '.join(self.abbyy_dialog.Static.Texts()),
+                        ' '.join(self.abbyy_dialog.Static2.Texts())
+                    ]).strip()
+                except pywinauto.findwindows.WindowAmbiguousError:
+                    # More than one dialog.
+                    static_texts = ' '.join(' '.join(c.Texts()) for c in chain.from_iterable(
+                        x.Children() for x in self.abbyy_app.windows_(class_name='#32770')))
+                    print 'STATIC TEXTS:', static_texts
                 if static_texts:
                     for phrase in self.check_phrases:
                         if phrase in static_texts:
