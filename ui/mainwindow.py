@@ -13,6 +13,7 @@ from ui.Ui_mainwindow import Ui_MainWindow
 from ui.abbyy_controller import AcrobatProxyListener, AbbyyOcr
 from ui.custom_widgets import Win7Taskbar, FileWatcher, find_app_path, get_exe_version
 from ui.message_boxes import message_box_error
+from ui.settings import Settings
 
 
 __author__ = 'Gary Hughes'
@@ -36,6 +37,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.setupUi(self)
 
         self.setWindowTitle('ABBYY Automator v{0:s}'.format(self.app.applicationVersion()))
+        self.settings = Settings()
 
         self.get_app_paths()
 
@@ -63,6 +65,22 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.statusbar.update_left('Ready to begin')
 
         self.output_folder = ''
+
+        self.load_settings()
+
+    def save_settings(self):
+        self.settings.last_watch_folder = self.le_watch_folder.text()
+        self.settings.last_output_folder = self.le_output_folder.text()
+        self.settings.last_profile = self.cb_profile.currentText()
+
+    def load_settings(self):
+        self.le_watch_folder.setText(self.settings.last_watch_folder)
+        self.le_output_folder.setText(self.settings.last_output_folder)
+        index = self.cb_profile.findText(self.settings.last_profile)
+        if index == -1:
+            self.cb_profile.setCurrentIndex(0)
+        else:
+            self.cb_profile.setCurrentIndex(index)
 
     def get_app_paths(self):
         # Get ABBYY path.
@@ -269,6 +287,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.abbyy_ocr.ocr(path)
 
     def closeEvent(self, event):
+        self.save_settings()
         self.file_queue.clear()  # Ensure the queue is clear for a clean exit.
         self.restore_acrobat()
 
