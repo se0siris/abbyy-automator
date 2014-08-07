@@ -80,7 +80,6 @@ class AppWatcher(QObject):
                     # More than one dialog.
                     static_texts = ' '.join(' '.join(c.Texts()) for c in chain.from_iterable(
                         x.Children() for x in self.abbyy_app.windows_(class_name='#32770')))
-                    print 'STATIC TEXTS:', static_texts
                 if static_texts:
                     for phrase in self.check_phrases:
                         if phrase in static_texts:
@@ -141,6 +140,8 @@ class AbbyyOcr(QObject):
         print 'Killing...'
         try:
             abbyy_temp_path = self.app_watcher.current_temp_path
+            if not abbyy_temp_path:
+                abbyy_temp_path = get_abbyy_temp_folder(self.pid)
             self.proc.kill()
             self.proc.wait()
             self.proc = None
