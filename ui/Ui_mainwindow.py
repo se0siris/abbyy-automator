@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'S:\dev\Python\ABBYY Automator\ui\mainwindow.ui'
 #
-# Created: Mon Aug 04 14:40:53 2014
+# Created: Thu Aug 14 12:59:21 2014
 #      by: PyQt4 UI code generator 4.9.6
 #
 # WARNING! All changes made in this file will be lost!
@@ -69,13 +69,14 @@ class Ui_MainWindow(object):
         self.horizontalLayout = QtGui.QHBoxLayout(self.frame)
         self.horizontalLayout.setMargin(0)
         self.horizontalLayout.setObjectName(_fromUtf8("horizontalLayout"))
-        self.rb_tiff = QtGui.QRadioButton(self.frame)
-        self.rb_tiff.setChecked(True)
-        self.rb_tiff.setObjectName(_fromUtf8("rb_tiff"))
-        self.horizontalLayout.addWidget(self.rb_tiff)
         self.rb_pdf = QtGui.QRadioButton(self.frame)
+        self.rb_pdf.setChecked(True)
         self.rb_pdf.setObjectName(_fromUtf8("rb_pdf"))
         self.horizontalLayout.addWidget(self.rb_pdf)
+        self.rb_tiff = QtGui.QRadioButton(self.frame)
+        self.rb_tiff.setChecked(False)
+        self.rb_tiff.setObjectName(_fromUtf8("rb_tiff"))
+        self.horizontalLayout.addWidget(self.rb_tiff)
         self.rb_jpeg = QtGui.QRadioButton(self.frame)
         self.rb_jpeg.setObjectName(_fromUtf8("rb_jpeg"))
         self.horizontalLayout.addWidget(self.rb_jpeg)
@@ -150,8 +151,8 @@ class Ui_MainWindow(object):
         self.button_watch_browse.setText(_translate("MainWindow", "Browse", None))
         self.label.setText(_translate("MainWindow", "Watch folder", None))
         self.label_2.setText(_translate("MainWindow", "Profile", None))
-        self.rb_tiff.setText(_translate("MainWindow", "Tiff", None))
         self.rb_pdf.setText(_translate("MainWindow", "Pdf", None))
+        self.rb_tiff.setText(_translate("MainWindow", "Tiff", None))
         self.rb_jpeg.setText(_translate("MainWindow", "Jpeg", None))
         self.tb_refresh_profiles.setToolTip(_translate("MainWindow", "Refresh profiles", None))
         self.label_4.setText(_translate("MainWindow", "Output folder", None))
