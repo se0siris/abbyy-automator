@@ -70,16 +70,23 @@ class AppWatcher(QObject):
             return
         if self.abbyy_dialog.Exists():
             # We have a dialog. Read it!
+            static_texts = ''
             try:  # Wrap in a try block in case the pesky window vanishes while we're reading...
                 try:
                     static_texts = ' '.join([
                         ' '.join(self.abbyy_dialog.Static.Texts()),
                         ' '.join(self.abbyy_dialog.Static2.Texts())
                     ]).strip()
+                except MemoryError:
+                    print 'Memory error when attempting to read text'
                 except pywinauto.findwindows.WindowAmbiguousError:
                     # More than one dialog.
-                    static_texts = ' '.join(' '.join(c.Texts()) for c in chain.from_iterable(
-                        x.Children() for x in self.abbyy_app.windows_(class_name='#32770')))
+                    try:
+                        static_texts = ' '.join(' '.join(c.Texts()) for c in chain.from_iterable(
+                            x.Children() for x in self.abbyy_app.windows_(class_name='#32770')))
+                    except MemoryError:
+                        print 'Memory error when attempting to read text'
+                        static_texts = ''
                 if static_texts:
                     for phrase in self.check_phrases:
                         if phrase in static_texts:
