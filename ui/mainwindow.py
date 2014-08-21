@@ -368,6 +368,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 'Invalid watch folder',
                 'Please set the watch folder to a valid path and try again.'
             )
+            self.button_start.setChecked(False)
             return
 
         # Set profile.

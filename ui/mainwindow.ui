@@ -87,9 +87,9 @@
              <number>0</number>
             </property>
             <item>
-             <widget class="QRadioButton" name="rb_tiff">
+             <widget class="QRadioButton" name="rb_pdf">
               <property name="text">
-               <string>Tiff</string>
+               <string>Pdf</string>
               </property>
               <property name="checked">
                <bool>true</bool>
@@ -97,9 +97,12 @@
              </widget>
             </item>
             <item>
-             <widget class="QRadioButton" name="rb_pdf">
+             <widget class="QRadioButton" name="rb_tiff">
               <property name="text">
-               <string>Pdf</string>
+               <string>Tiff</string>
+              </property>
+              <property name="checked">
+               <bool>false</bool>
               </property>
              </widget>
             </item>

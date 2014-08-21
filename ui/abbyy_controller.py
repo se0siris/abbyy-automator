@@ -83,11 +83,6 @@ class AppWatcher(QObject):
                 if static_texts:
                     for phrase in self.check_phrases:
                         if phrase in static_texts:
-                            close_button = self.abbyy_dialog.CloseButton
-                            while close_button.Exists():
-                                print 'Click closed'
-                                close_button.Click()
-                                time.sleep(0.3)
                             self.error.emit(phrase)
                             self.abbyy_app.kill_()
                             break
