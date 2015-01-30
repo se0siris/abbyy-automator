@@ -68,7 +68,11 @@ class AppWatcher(QObject):
             print 'Abbyy quit?'
             self.error.emit('Abbyy exited before being able to process the file.')
             return
-        if self.abbyy_dialog.Exists():
+        try:
+            dialog_exists = self.abbyy_dialog.Exists()
+        except pywinauto.WindowAmbiguousError:
+            dialog_exists = True
+        if dialog_exists:
             # We have a dialog. Read it!
             static_texts = ''
             try:  # Wrap in a try block in case the pesky window vanishes while we're reading...
