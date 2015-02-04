@@ -81,14 +81,14 @@ class AppWatcher(QObject):
                         ' '.join(self.abbyy_dialog.Static.Texts()),
                         ' '.join(self.abbyy_dialog.Static2.Texts())
                     ]).strip()
-                except MemoryError:
+                except (MemoryError, OverflowError):
                     print 'Memory error when attempting to read text'
                 except pywinauto.findwindows.WindowAmbiguousError:
                     # More than one dialog.
                     try:
                         static_texts = ' '.join(' '.join(c.Texts()) for c in chain.from_iterable(
                             x.Children() for x in self.abbyy_app.windows_(class_name='#32770')))
-                    except MemoryError:
+                    except (MemoryError, OverflowError):
                         print 'Memory error when attempting to read text'
                         static_texts = ''
                 if static_texts:
