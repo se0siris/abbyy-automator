@@ -427,14 +427,24 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     @pyqtSignature('')
     def on_button_watch_browse_released(self):
-        watch_path = QFileDialog.getExistingDirectory(self, 'Select an input folder')
+        output_path = unicode(self.le_output_folder.text())
+        if output_path and os.path.isdir(output_path):
+            start_path = output_path
+        else:
+            start_path = None
+        watch_path = QFileDialog.getExistingDirectory(self, 'Select an input folder', start_path)
         if not watch_path:
             return
         self.le_watch_folder.setText(watch_path)
 
     @pyqtSignature('')
     def on_button_output_browse_released(self):
-        output_path = QFileDialog.getExistingDirectory(self, 'Select an output folder')
+        watch_path = unicode(self.le_watch_folder.text())
+        if watch_path and os.path.isdir(watch_path):
+            start_path = watch_path
+        else:
+            start_path = None
+        output_path = QFileDialog.getExistingDirectory(self, 'Select an output folder', start_path)
         if not output_path:
             return
         self.le_output_folder.setText(output_path)
