@@ -29,7 +29,7 @@
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_2">
        <item>
-        <layout class="QGridLayout" name="gridLayout">
+        <layout class="QGridLayout" name="inputs_layout">
          <item row="2" column="1">
           <widget class="QComboBox" name="cb_profile">
            <item>
@@ -230,6 +230,22 @@
        </widget>
       </item>
       <item>
+       <widget class="QPushButton" name="button_reset">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>Reset</string>
+        </property>
+        <property name="checkable">
+         <bool>false</bool>
+        </property>
+        <property name="checked">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QPushButton" name="button_start">
         <property name="text">
          <string>Start</string>
@@ -260,6 +276,21 @@
    <header>custom_widgets</header>
   </customwidget>
  </customwidgets>
+ <tabstops>
+  <tabstop>le_watch_folder</tabstop>
+  <tabstop>button_watch_browse</tabstop>
+  <tabstop>le_output_folder</tabstop>
+  <tabstop>button_output_browse</tabstop>
+  <tabstop>cb_profile</tabstop>
+  <tabstop>tb_refresh_profiles</tabstop>
+  <tabstop>rb_pdf</tabstop>
+  <tabstop>rb_tiff</tabstop>
+  <tabstop>rb_jpeg</tabstop>
+  <tabstop>pte_log</tabstop>
+  <tabstop>button_save_errors</tabstop>
+  <tabstop>button_reset</tabstop>
+  <tabstop>button_start</tabstop>
+ </tabstops>
  <resources>
   <include location="res.qrc"/>
  </resources>

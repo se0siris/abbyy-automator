@@ -53,6 +53,7 @@ class FileWatcher(QObject):
         self.extension = extension
         self.mutex = QMutex()
         self.stopping_value = False
+        self.h_dir = None
 
     @property
     def stopping(self):
@@ -61,6 +62,11 @@ class FileWatcher(QObject):
 
     @stopping.setter
     def stopping(self, value):
+        print 'WATCH:', self.h_dir
+        if self.h_dir:
+            print 'Cancelling watch...'
+            print win32file.CancelIo(self.h_dir)
+            print 'Watch cancelled.'
         mutex_locker = QMutexLocker(self.mutex)
         self.stopping_value = value
 
@@ -74,7 +80,7 @@ class FileWatcher(QObject):
 
         self.first_queue.emit(file_queue)
 
-        h_dir = win32file.CreateFile(
+        self.h_dir = win32file.CreateFile(
             self.watch_folder,
             self.FILE_LIST_DIRECTORY,
             win32con.FILE_SHARE_READ | win32con.FILE_SHARE_WRITE | win32con.FILE_SHARE_DELETE,
@@ -93,7 +99,7 @@ class FileWatcher(QObject):
         while 1:
             try:
                 results = win32file.ReadDirectoryChangesW(
-                    h_dir,
+                    self.h_dir,
                     10240,
                     True,
                     win32con.FILE_NOTIFY_CHANGE_FILE_NAME |
@@ -110,6 +116,7 @@ class FileWatcher(QObject):
                 return
 
             if self.stopping:
+                print 'WOOP', win32file.CancelIo(self.h_dir)
                 self.finished.emit()
                 return
             for action, filename in results:
