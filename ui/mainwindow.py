@@ -7,7 +7,7 @@ import shutil
 import sys
 
 from PyQt4.QtCore import pyqtSignature, QThread
-from PyQt4.QtGui import QMainWindow, QApplication, QFileDialog
+from PyQt4.QtGui import QMainWindow, QApplication, QFileDialog, QWidget
 
 from ui.Ui_mainwindow import Ui_MainWindow
 from ui.abbyy_controller import AcrobatProxyListener, AbbyyOcr
@@ -47,6 +47,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.last_logged_text = ''
 
+        self.file_watcher_threads = []
         self.file_watcher = None
         self.processed_count = 0
         self.skipped_count = 0
@@ -341,12 +342,40 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             widget.setEnabled(False)
         return
 
+    def set_inputs_enabled(self, enabled=True):
+        for item in (self.inputs_layout.itemAt(i).widget() for i in xrange(self.inputs_layout.count())):
+            if isinstance(item, QWidget):
+                item.setEnabled(enabled)
+
     def reset(self):
         self.acrobat_proxy_listener.stop()
         self.progress_bar.setVisible(False)
         self.button_start.setChecked(False)
+
+        self.processed_count = 0
+        self.skipped_count = 0
         self.file_queue = deque()
         self.update_processed_status()
+
+    @pyqtSignature('')
+    def on_button_reset_released(self):
+        self.button_start.setChecked(False)
+
+        print 'Stopping file watcher...'
+        try:
+            self.file_watcher.stopping = True
+            self.file_watcher_thread.quit()
+            # self.file_watcher_thread.terminate()
+
+            del self.file_watcher
+            # del self.file_watcher_thread
+        except AttributeError:
+            print 'Could not stop file watcher. Was it running?'
+        print 'File watcher stopped.'
+
+        self.reset()
+        self.set_inputs_enabled(True)
+        self.button_reset.setEnabled(False)
 
     @pyqtSignature('bool')
     def on_button_start_toggled(self, pressed):
@@ -357,6 +386,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             if self.current_pathname is None:
                 self.acrobat_proxy_listener.stop()
             return
+
+        self.set_inputs_enabled(False)
+        self.button_reset.setEnabled(True)
 
         self.output_folder = str(self.le_output_folder.text())
         print "Output folder:", self.output_folder
@@ -394,27 +426,28 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.reset()
             return
 
-        if not hasattr(self, 'file_watcher_thread'):
+        # if not hasattr(self, 'file_watcher_thread'):
             # Get extension from radio buttons.
-            if self.rb_tiff.isChecked():
-                extension = ('.tiff', '.tif')
-            elif self.rb_pdf.isChecked():
-                extension = '.pdf'
-            elif self.rb_jpeg.isChecked():
-                extension = '.jpg'
-            else:
-                raise Exception('No extension selected')
+        if self.rb_tiff.isChecked():
+            extension = ('.tiff', '.tif')
+        elif self.rb_pdf.isChecked():
+            extension = '.pdf'
+        elif self.rb_jpeg.isChecked():
+            extension = '.jpg'
+        else:
+            raise Exception('No extension selected')
 
-            self.file_watcher_thread = QThread()
-            self.file_watcher = FileWatcher(watch_folder, extension)
-            self.file_watcher.moveToThread(self.file_watcher_thread)
-            self.file_watcher_thread.started.connect(self.file_watcher.start)
-            self.file_watcher_thread.finished.connect(self.file_watcher_thread.deleteLater)
-            self.file_watcher.finished.connect(self.file_watcher_thread.quit)
-            self.file_watcher.count_change.connect(self.queue_size_changed)
-            self.file_watcher.first_queue.connect(self.queue_received)
-            self.file_watcher.queue_change.connect(self.watch_folder_changed)
-            self.file_watcher.error.connect(self.file_watcher_error)
+        self.file_watcher_thread = QThread()
+        self.file_watcher_threads.append(self.file_watcher_thread)
+        self.file_watcher = FileWatcher(watch_folder, extension)
+        self.file_watcher.moveToThread(self.file_watcher_thread)
+        self.file_watcher_thread.started.connect(self.file_watcher.start)
+        self.file_watcher_thread.finished.connect(self.file_watcher_thread.deleteLater)
+        self.file_watcher.finished.connect(self.file_watcher_thread.quit)
+        self.file_watcher.count_change.connect(self.queue_size_changed)
+        self.file_watcher.first_queue.connect(self.queue_received)
+        self.file_watcher.queue_change.connect(self.watch_folder_changed)
+        self.file_watcher.error.connect(self.file_watcher_error)
 
         if not self.file_watcher_thread.isRunning():
             self.file_watcher_thread.start()
