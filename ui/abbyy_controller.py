@@ -49,7 +49,7 @@ class AppWatcher(QObject):
 
     def start(self):
         print 'Starting watcher'
-        self.abbyy_app = pywinauto.Application.connect(process=self.pid)
+        self.abbyy_app = pywinauto.Application().connect(process=self.pid)
         """@type : Application"""
         self.abbyy_dialog = self.abbyy_app.window_(class_name='#32770')
 
