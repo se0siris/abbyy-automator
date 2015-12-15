@@ -91,6 +91,9 @@ class AppWatcher(QObject):
                     except (MemoryError, OverflowError):
                         print 'Memory error when attempting to read text'
                         static_texts = ''
+                except TypeError:
+                    # Bug in pywinauto, possibly for when there is no window text.
+                    static_texts = ''
                 if static_texts:
                     for phrase in self.check_phrases:
                         if phrase in static_texts:
