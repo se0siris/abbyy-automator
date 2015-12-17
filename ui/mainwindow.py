@@ -464,7 +464,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if output_path and os.path.isdir(output_path):
             start_path = output_path
         else:
-            start_path = None
+            start_path = ''
         watch_path = QFileDialog.getExistingDirectory(self, 'Select an input folder', start_path)
         if not watch_path:
             return
@@ -476,7 +476,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if watch_path and os.path.isdir(watch_path):
             start_path = watch_path
         else:
-            start_path = None
+            start_path = ''
         output_path = QFileDialog.getExistingDirectory(self, 'Select an output folder', start_path)
         if not output_path:
             return
