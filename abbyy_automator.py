@@ -12,7 +12,7 @@ from ui.message_boxes import message_box_error
 __author__ = 'Gary Hughes'
 
 
-VERSION = '1.1.1 (15/12/2015)'
+VERSION = '1.1.2 (17/12/2015)'
 
 
 def except_hook(exc_type, exc_value, traceback_obj):
